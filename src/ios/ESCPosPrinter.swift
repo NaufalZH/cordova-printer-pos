@@ -1,5 +1,4 @@
 import Foundation
-import Cordova
 import Network
 import CoreBluetooth
 import ExternalAccessory
