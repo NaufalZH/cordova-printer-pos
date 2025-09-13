@@ -5,12 +5,25 @@ import Foundation
 /// supported tags: [L],[C],[R], <b>, <u>, <font size='big'|'tall'|'normal'>
 public class EscPosTextEncoder {
     private var buffer = Data()
-    private var currentEncoding: String.Encoding = .ascii
-
-    public init(encoding: String.Encoding = .ascii) {
-        self.currentEncoding = encoding
+    private var charset: EscPosCharsetEncoding
+    
+    public init(charset: EscPosCharsetEncoding = EscPosCharsetEncodings.CP437) {
+        self.charset = charset
+    }
+    
+    public func setCharset(_ cs: EscPosCharsetEncoding) {
+        self.charset = cs
+        buffer.append(contentsOf: cs.command) // kirim command set codepage ke printer
     }
 
+    private func appendText(_ txt: String) {
+        if let d = txt.data(using: charset.encoding, allowLossyConversion: true) {
+            buffer.append(d)
+        } else if let fallback = txt.data(using: .utf8) {
+            buffer.append(fallback)
+        }
+    }
+    
     public func reset() {
         buffer.removeAll()
     }
