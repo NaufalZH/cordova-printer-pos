@@ -1,5 +1,14 @@
 import Foundation
 
+// --- helper extension ---
+extension String.Encoding {
+    static func from(cfEnc: CFStringEncodings) -> String.Encoding {
+        let nsEnc = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(cfEnc.rawValue))
+        return String.Encoding(rawValue: nsEnc)
+    }
+}
+// --- akhir helper extension ---
+
 public struct EscPosCharsetEncoding {
     public let command: [UInt8]
     public let encoding: String.Encoding
