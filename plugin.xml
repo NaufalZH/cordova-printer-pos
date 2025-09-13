@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugin id="cordova-plugin-escpos-ios" version="0.1.0" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+  <name>ESCPosPrinter</name>
+  <description>Cordova plugin to send raw ESC/POS bytes to printers on iOS (tcp/ble/externalAccessory)</description>
+  <license>MIT</license>
+  <keywords>escpos,printer,cordova,ios</keywords>
+
+  <engines>
+    <engine name="cordova" version=">=10.0.0" />
+  </engines>
+
+  <platform name="ios">
+    <config-file target="*-Info.plist" parent="NSBluetoothAlwaysUsageDescription">
+      <string>Needed for connecting to Bluetooth printers</string>
+    </config-file>
+    <config-file target="*-Info.plist" parent="NSLocalNetworkUsageDescription">
+      <string>Needed to discover and connect to network printers on local network</string>
+    </config-file>
+
+    <source-file src="src/ios/ESCPosPrinter.swift" target-dir="Plugins/ESCPosPrinter"/>
+  </platform>
+
+  <js-module src="www/escpos.js" name="ESCPosPrinter">
+    <clobbers target="escpos" />
+  </js-module>
+</plugin>
