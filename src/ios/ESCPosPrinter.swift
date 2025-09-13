@@ -6,17 +6,31 @@ import ExternalAccessory
 
 @objc(ESCPosPrinter) class ESCPosPrinter : CDVPlugin {
 
-    // tcp connection
     var connection: NWConnection?
-
-    // ble
     var centralManager: CBCentralManager?
     var foundPeripheral: CBPeripheral?
     var writeCharacteristic: CBCharacteristic?
-
-    // external accessory
     var accessorySession: EASession?
     var accessory: EAAccessory?
+    var listenerCallbackId: String?
+
+    // register JS listener
+    @objc(registerListener:)
+    func registerListener(command: CDVInvokedUrlCommand) {
+        self.listenerCallbackId = command.callbackId
+        let result = CDVPluginResult(status: CDVCommandStatus_NO_RESULT)
+        result?.setKeepCallbackAs(true)
+        self.commandDelegate.send(result, callbackId: command.callbackId)
+    }
+
+    func sendEvent(type: String, msg: String) {
+        if let cb = listenerCallbackId {
+            let dict: [String:Any] = ["type": type, "msg": msg]
+            let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: dict)
+            result?.setKeepCallbackAs(true)
+            self.commandDelegate.send(result, callbackId: cb)
+        }
+    }
 
     @objc(connect:)
     func connect(command: CDVInvokedUrlCommand) {
@@ -33,20 +47,15 @@ import ExternalAccessory
             }
             connectTCP(host: host, port: port) { success, msg in
                 if success {
+                    self.sendEvent(type: "connect", msg: "connected")
                     self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_OK, messageAs: "connected"), callbackId: command.callbackId)
                 } else {
+                    self.sendEvent(type: "error", msg: msg)
                     self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: msg), callbackId: command.callbackId)
                 }
             }
-        } else if type == "ble" {
-            centralManager = CBCentralManager(delegate: self, queue: nil)
-            // store peripheralId or name to search
-            objc_setAssociatedObject(self, &AssociatedKeys.connectOptions, opts, objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_NO_RESULT), callbackId: command.callbackId)
-        } else if type == "externalAccessory" {
-            // require MFi and EAAccessory selection - out of scope to auto-select
-            self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "externalAccessory flow requires app-specific EAAccessory handling"), callbackId: command.callbackId)
         } else {
+            self.sendEvent(type: "error", msg: "unknown type")
             self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "unknown type"), callbackId: command.callbackId)
         }
     }
@@ -60,6 +69,8 @@ import ExternalAccessory
                 completion(true, "ready")
             case .failed(let e):
                 completion(false, "failed: \(e.localizedDescription)")
+            case .cancelled:
+                self.sendEvent(type: "disconnect", msg: "cancelled")
             default:
                 break
             }
@@ -70,42 +81,12 @@ import ExternalAccessory
     @objc(writeBase64:)
     func writeBase64(command: CDVInvokedUrlCommand) {
         guard let b64 = command.argument(at: 0) as? String, let data = Data(base64Encoded: b64) else {
+            self.sendEvent(type: "error", msg: "invalid base64")
             self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "invalid base64"), callbackId: command.callbackId)
             return
         }
         writeRaw(data: data) { ok, msg in
-            if ok {
-                self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_OK, messageAs: "written"), callbackId: command.callbackId)
-            } else {
-                self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: msg), callbackId: command.callbackId)
-            }
-        }
-    }
-
-    @objc(writeHex:)
-    func writeHex(command: CDVInvokedUrlCommand) {
-        guard let hex = command.argument(at: 0) as? String else {
-            self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: "invalid hex"), callbackId: command.callbackId)
-            return
-        }
-        var data = Data()
-        var tempHex = hex
-        if tempHex.count % 2 != 0 { tempHex = "0" + tempHex }
-        var idx = tempHex.startIndex
-        while idx < tempHex.endIndex {
-            let nextIdx = tempHex.index(idx, offsetBy: 2)
-            let byteStr = String(tempHex[idx..<nextIdx])
-            if let b = UInt8(byteStr, radix: 16) {
-                data.append(b)
-            }
-            idx = nextIdx
-        }
-        writeRaw(data: data) { ok, msg in
-            if ok {
-                self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_OK, messageAs: "written"), callbackId: command.callbackId)
-            } else {
-                self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: msg), callbackId: command.callbackId)
-            }
+            if !ok { self.sendEvent(type: "error", msg: msg) }
         }
     }
 
@@ -120,21 +101,6 @@ import ExternalAccessory
             }))
             return
         }
-        // BLE path
-        if let peripheral = foundPeripheral, let char = writeCharacteristic {
-            peripheral.writeValue(data, for: char, type: .withResponse)
-            completion(true, "written-ble")
-            return
-        }
-        // EA accessory
-        if let session = accessorySession, let out = session.outputStream {
-            data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
-                guard let bytes = ptr.bindMemory(to: UInt8.self).baseAddress else { return }
-                out.write(bytes, maxLength: data.count)
-            }
-            completion(true, "written-ea")
-            return
-        }
         completion(false, "no connection")
     }
 
@@ -144,43 +110,7 @@ import ExternalAccessory
             conn.cancel()
             connection = nil
         }
-        if let peripheral = foundPeripheral {
-            centralManager?.cancelPeripheralConnection(peripheral)
-            foundPeripheral = nil
-        }
-        if let session = accessorySession {
-            session.inputStream?.close()
-            session.outputStream?.close()
-            accessorySession = nil
-        }
+        self.sendEvent(type: "disconnect", msg: "disconnected")
         self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus_OK, messageAs: "disconnected"), callbackId: command.callbackId)
     }
 }
-
-// MARK: - BLE helpers
-
-fileprivate struct AssociatedKeys {
-    static var connectOptions = "connectOptions"
-}
-
-extension ESCPosPrinter: CBCentralManagerDelegate, CBPeripheralDelegate {
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        guard central.state == .poweredOn else { return }
-        if let opts = objc_getAssociatedObject(self, &AssociatedKeys.connectOptions) as? [String:Any] {
-            if let peripheralId = opts["peripheralId"] as? String {
-                // try scan and match name or identifier
-                central.scanForPeripherals(withServices: nil, options: nil)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                    central.stopScan()
-                }
-            } else if let name = opts["name"] as? String {
-                central.scanForPeripherals(withServices: nil, options: nil)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                    central.stopScan()
-                }
-            }
-        }
-    }
-
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        if let opts = o
