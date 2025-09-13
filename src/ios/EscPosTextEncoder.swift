@@ -9,13 +9,14 @@ public class EscPosTextEncoder {
     
     public init(charset: EscPosCharsetEncoding = EscPosCharsetEncodings.CP437) {
         self.charset = charset
+        buffer.append(contentsOf: charset.command) // set codepage
     }
     
     public func setCharset(_ cs: EscPosCharsetEncoding) {
         self.charset = cs
-        buffer.append(contentsOf: cs.command) // kirim command set codepage ke printer
+        buffer.append(contentsOf: cs.command)
     }
-
+    
     private func appendText(_ txt: String) {
         if let d = txt.data(using: charset.encoding, allowLossyConversion: true) {
             buffer.append(d)
