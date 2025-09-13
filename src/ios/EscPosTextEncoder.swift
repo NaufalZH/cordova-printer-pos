@@ -9,26 +9,71 @@ public class EscPosTextEncoder {
     
     public init(charset: EscPosCharsetEncoding = EscPosCharsetEncodings.CP437) {
         self.charset = charset
-        buffer.append(contentsOf: charset.command) // set codepage
+        setCharset(charset)
     }
     
-    public func setCharset(_ cs: EscPosCharsetEncoding) {
-        self.charset = cs
-        buffer.append(contentsOf: cs.command)
+    /// ganti charset (kirim ESC t n)
+    public func setCharset(_ charset: EscPosCharsetEncoding) {
+        self.charset = charset
+        buffer.append(contentsOf: charset.command)
     }
     
-    private func appendText(_ txt: String) {
-        if let d = txt.data(using: charset.encoding, allowLossyConversion: true) {
+    /// reset buffer (clear semua data)
+    public func reset() {
+        buffer.removeAll()
+        setCharset(charset)
+    }
+    
+    /// tambah teks dengan encoding sesuai charset
+    public func text(_ string: String) {
+        if let d = string.data(using: charset.encoding, allowLossyConversion: true) {
             buffer.append(d)
-        } else if let fallback = txt.data(using: .utf8) {
-            buffer.append(fallback)
+        } else {
+            // fallback: UTF-8 kalau gagal encode
+            if let d = string.data(using: .utf8) {
+                buffer.append(d)
+            }
         }
     }
     
-    public func reset() {
-        buffer.removeAll()
+    /// tambah teks + newline
+    public func textLine(_ string: String) {
+        text(string)
+        newline()
     }
-
+    
+    /// tambah newline
+    public func newline(_ count: Int = 1) {
+        for _ in 0..<count {
+            buffer.append(0x0A)
+        }
+    }
+    
+    /// potong kertas (ESC i)
+    public func cut(full: Bool = true) {
+        if full {
+            buffer.append(contentsOf: [0x1D, 0x56, 0x00])
+        } else {
+            buffer.append(contentsOf: [0x1D, 0x56, 0x01])
+        }
+    }
+    
+    /// bold on/off
+    public func bold(_ on: Bool) {
+        buffer.append(contentsOf: [0x1B, 0x45, on ? 1 : 0])
+    }
+    
+    /// underline (0=off, 1=thin, 2=thick)
+    public func underline(_ mode: Int) {
+        buffer.append(contentsOf: [0x1B, 0x2D, UInt8(mode & 0xFF)])
+    }
+    
+    /// align: 0=left, 1=center, 2=right
+    public func align(_ mode: Int) {
+        buffer.append(contentsOf: [0x1B, 0x61, UInt8(mode & 0xFF)])
+    }
+    
+    /// ambil hasil data siap kirim ke printer
     public func data() -> Data {
         return buffer
     }
