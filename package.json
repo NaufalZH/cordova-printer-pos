@@ -1,0 +1,30 @@
+{
+  "name": "cordova-printer-pos",
+  "version": "1.0.0",
+  "description": "Cordova plugin to connect printer POS via TCP (recommended — printer network/ethernet/wifi), BLE (if printer support BLE), and externalAccessory (for printer MFi).",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NaufalZH/cordova-printer-pos.git"
+  },
+  "keywords": [
+    "ecosystem:cordova",
+    "cordova-ios",
+    "thermal",
+    "printer",
+    "cordova",
+    "plugin",
+    "esc",
+    "pos",
+    "esc/pos"
+  ],
+  "author": {
+    "name": "Sri Wahono",
+    "email": "wahono77@gmail.com",
+    "url": "https://zayeen.com/"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/NaufalZH/cordova-printer-pos/issues
+  },
+  "homepage": "https://github.com/NaufalZH/cordova-printer-pos"
+}
